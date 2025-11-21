@@ -3,14 +3,30 @@ import { motion, useViewportScroll, useTransform } from "framer-motion";
 import ReactHowler from "react-howler";
 import { FaGlassCheers, FaMusic, FaBirthdayCake, FaMoon } from "react-icons/fa";
 import "./invitacionDenisse.styles.css";
+import { fetchAPI } from "../../utils/fetch-api";
+
+export async function getInvitationData() {
+  const token = import.meta.env.VITE_STRAPI_TOKEN;
+  const path = `/invitations`;
+  const slug = "invitacion-xv-denisse";
+  const fullPath =
+    path +
+    `?filters[slug][$eq]=${slug}&populate[0]=itinerary&populate[1]=locations&populate[2]=form.questions&populate[3]=locations.imgUrl&populate[4]=form.questions.options&populate[5]=media.url`;
+  const options = { headers: { Authorization: `Bearer ${token}` } };
+  const invitationResponse = await fetchAPI(fullPath, {}, options);
+
+  return invitationResponse.data[0];
+}
 
 export default function InvitacionXV() {
   const BASE_PATH = import.meta.env.BASE_URL || "";
+  const BASE_STRAPI =
+    import.meta.env.VITE_STRAPI_URL || "http://127.0.0.1:1337";
   const [playing, setPlaying] = useState(false);
   const howlerRef = useRef(null);
 
   const { scrollY } = useViewportScroll();
-  
+
   const backgroundY = useTransform(scrollY, [0, 800], [0, -120]);
   const maskScale = useTransform(scrollY, [0, 800], [1, 1.5]);
 
@@ -19,6 +35,61 @@ export default function InvitacionXV() {
   const nombreInvitado = new URLSearchParams(window.location.search).get(
     "invitado"
   );
+
+  const [invitationData, setInvitationData] = useState(null);
+  const [loadingData, setLoadingData] = useState(true);
+  const [musicLoaded, setMusicLoaded] = useState(false);
+
+  const hoursTo12HourFormat = (time) => {
+    // example: "19:30:00" -> "7:30 PM" and "00:00:00" -> "8:00 AM"
+    const [hour, minute] = time.split(":");
+    const hourNum = parseInt(hour, 10);
+    const period = hourNum >= 12 ? "PM" : "AM";
+    const hour12 = hourNum % 12 === 0 ? 12 : hourNum % 12;
+    return `${hour12}:${minute} ${period}`;
+  };
+  const nameToAnyIcon = (name) => {
+    switch (name.toLowerCase()) {
+      case "glasscheers":
+        return <FaGlassCheers className="icon-gold" />;
+      case "music":
+        return <FaMusic className="icon-gold" />;
+      case "birthdaycake":
+        return <FaBirthdayCake className="icon-gold" />;
+      case "moon":
+        return <FaMoon className="icon-gold" />;
+      default:
+        return null;
+    }
+  };
+  const findMedia = (title) => {
+    // invitationData?.media find by title
+    return invitationData?.media.find((media) => media.title === title);
+  };
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const data = await getInvitationData();
+        setInvitationData(data);
+      } catch (error) {
+        console.error("Error fetching invitation data:", error);
+      } finally {
+        setTimeout(() => {
+          setLoadingData(false);
+        }, 800);
+      }
+    };
+    fetchData();
+  }, []);
+
+  // start music when scrollY > 300 and fix the problem The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page.
+  useEffect(() => {
+    return scrollY.onChange((latest) => {
+      if (latest > 300 && !playing) {
+        setPlaying(true);
+      }
+    });
+  }, [scrollY]);
 
   useEffect(() => {
     if (nombreInvitado) {
@@ -53,74 +124,7 @@ export default function InvitacionXV() {
     return () => clearInterval(timer);
   }, [fechaEvento]);
 
-  const eventos = [
-    {
-      hora: "7:30 PM",
-      icono: <FaGlassCheers className="icon-gold" />,
-      titulo: "Recepción de invitados",
-    },
-    {
-      hora: "8:00 PM",
-      icono: <FaMusic className="icon-gold" />,
-      titulo: "Vals de Denisse",
-    },
-    {
-      hora: "8:30 PM",
-      icono: <FaBirthdayCake className="icon-gold" />,
-      titulo: "Cena y brindis",
-    },
-    {
-      hora: "9:30 PM",
-      icono: <FaMusic className="icon-gold" />,
-      titulo: "Invitado especial y baile",
-    },
-    {
-      hora: "12:00 AM",
-      icono: <FaMoon className="icon-gold" />,
-      titulo: "Cierre del evento",
-    },
-  ];
-
-  const ubicaciones = [
-    {
-      imgUrl:
-        "https://i.pinimg.com/originals/46/da/b9/46dab93a3de47358bbba3ada67715311.jpg",
-      nombre: "Parroquia San Juan Bautista",
-      direccion: "Vicente Guerrero, Cuauhtémoc 285, 73784 Libres, Puebla",
-      hora: "3:00 PM",
-      mapaUrl: "https://goo.gl/maps/example1",
-    },
-    {
-      imgUrl:
-        "https://cdn0.bodas.com.mx/vendor/1378/3_2/960/jpg/el-encanto-3_5_311378-167213240558574.webp",
-      nombre: "Salón de Fiestas El Encanto",
-      direccion: "",
-      hora: "4:00 PM",
-      mapaUrl: "https://goo.gl/maps/example2",
-    },
-  ];
-
   const [abrirConfirmacion, setAbrirConfirmacion] = useState(false);
-
-  const camposFormulario = [
-    {
-      id: "nombre",
-      label: "Nombre",
-      tipo: "text",
-      disabled: !!nombreInvitado,
-      placeholder: "Ingresa tu nombre",
-    },
-    {
-      id: "asistencia",
-      label: "Asistencia",
-      tipo: "select",
-      opciones: [
-        { value: "confirmado", label: "Confirmado" },
-        { value: "pendiente", label: "Pendiente" },
-        { value: "rechazado", label: "Rechazado" },
-      ],
-    },
-  ];
 
   const [valoresFormulario, setValoresFormulario] = useState({
     nombre: nombreInvitado || "",
@@ -133,8 +137,9 @@ export default function InvitacionXV() {
     return (
       <>
         <ReactHowler
-          src={["/music/valz.mp3"]}
+          src={[BASE_STRAPI + findMedia("main-song")?.url.url]}
           playing={playing}
+          onLoad={() => {setMusicLoaded(true)}}
           ref={howlerRef}
           loop={true}
           volume={0.6}
@@ -349,23 +354,26 @@ export default function InvitacionXV() {
         <div className="content relative-z">
           <h3 className="section-title text-gold-pale">Dónde y Cuándo</h3>
 
-          {ubicaciones.map((ubicacion, index) => (
+          {invitationData?.locations.map((location, index) => (
             <div key={index} className="location-card border-red-transparent">
               <div
                 className="location-image"
-                style={{ backgroundImage: `url(${ubicacion.imgUrl})` }}
+                style={{
+                  backgroundImage: `url(${BASE_STRAPI}${location.imgUrl.formats.medium.url})`,
+                }}
               />
+
               <div className="location-info-overlay border-gold-faint">
-                <h4 className="location-name text-gold">{ubicacion.nombre}</h4>
+                <h4 className="location-name text-gold">{location.name}</h4>
                 <p className="location-address text-gray-light">
-                  {ubicacion.direccion}
+                  {location.address}
                 </p>
                 <p className="location-time text-gray-light">
-                  A las {ubicacion.hora}
+                  A las {hoursTo12HourFormat(location.time)}.
                 </p>
                 <div className="location-cta-wrapper">
                   <a
-                    href={ubicacion.mapaUrl}
+                    href={location.mapUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="btn-gold shadow-std"
@@ -397,7 +405,7 @@ export default function InvitacionXV() {
             <div className="timeline-line border-gold-brown" />
 
             <div className="timeline-items-wrapper">
-              {eventos.map((evento, index) => (
+              {invitationData?.itinerary.map((evento, index) => (
                 <motion.div
                   key={index}
                   initial={{ opacity: 0, y: 20 }}
@@ -411,16 +419,16 @@ export default function InvitacionXV() {
 
                   {/* Ícono */}
                   <div className="timeline-icon-box bg-black border-gold-semi">
-                    {evento.icono}
+                    {nameToAnyIcon(evento.icon)}
                   </div>
 
                   {/* Texto */}
                   <div>
                     <p className="timeline-time text-gold-pale-80">
-                      {evento.hora}
+                      {hoursTo12HourFormat(evento.time)}
                     </p>
                     <h3 className="timeline-event-title text-yellow-light">
-                      {evento.titulo}
+                      {evento.title}
                     </h3>
                   </div>
                 </motion.div>
@@ -513,14 +521,14 @@ export default function InvitacionXV() {
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
                 >
-                  {camposFormulario.map((campo) => (
+                  {invitationData?.form.questions.map((field) => (
                     <div
-                      key={campo.id}
+                      key={field.id}
                       className="mb-4 text-left"
                       style={{ marginBottom: "1rem", textAlign: "left" }}
                     >
                       <label
-                        htmlFor={campo.id}
+                        htmlFor={field.name}
                         className="block text-sm font-medium text-gray-300"
                         style={{
                           display: "block",
@@ -529,10 +537,10 @@ export default function InvitacionXV() {
                           color: "#d1d5db",
                         }}
                       >
-                        {campo.label}
+                        {field.label}
                       </label>
-                      {campo.tipo == "text" && renderTextField(campo)}
-                      {campo.tipo == "select" && renderSelectField(campo)}
+                      {field.type == "text" && renderTextField(field)}
+                      {field.type == "select" && renderSelectField(field)}
                     </div>
                   ))}
                 </motion.div>
@@ -544,44 +552,49 @@ export default function InvitacionXV() {
     );
   };
 
-  const renderTextField = (campo) => {
+  const renderTextField = (field) => {
     return (
       <input
-        type={campo.tipo}
-        id={campo.id}
-        placeholder={campo.placeholder}
+        type={field.type}
+        id={field.id}
+        placeholder={field.help}
         className="form-input border-gray bg-gray-dark text-light focus-gold"
         required={true}
-        value={valoresFormulario[campo.id]}
-        disabled={campo.disabled}
+        value={valoresFormulario[field.name]}
+        disabled={field.disabled}
         onChange={(e) =>
           setValoresFormulario({
             ...valoresFormulario,
-            [campo.id]: e.target.value,
+            [field.name]: e.target.value,
           })
         }
       />
     );
   };
 
-  const renderSelectField = (campo) => {
+  const renderSelectField = (field) => {
     return (
       <select
-        id={campo.id}
-        value={valoresFormulario[campo.id]}
+        id={field.id}
+        value={valoresFormulario[field.name]}
         onChange={(e) =>
           setValoresFormulario({
             ...valoresFormulario,
-            [campo.id]: e.target.value,
+            [field.name]: e.target.value,
           })
         }
         className="form-select border-gray bg-gray-dark text-light focus-gold"
         required={true}
       >
-        {campo.opciones.map((opcion) => (
-          <option key={opcion.value} value={opcion.value}>
-            {opcion.label}
-          </option>
+        {field.options.map((option) => (
+          <>
+            <option value={""} disabled>
+              {option.help}
+            </option>
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          </>
         ))}
       </select>
     );
@@ -589,7 +602,13 @@ export default function InvitacionXV() {
 
   return (
     <div className="main-page-wrapper bg-black text-white">
-      {renderMusicSection()}
+      {loadingData && !musicLoaded ? (
+        <div className="loading-screen">
+          <div className="loading-spinner" />
+          <p className="loading-text text-gold-pale">Cargando invitación...</p>
+        </div>
+      ) : null}
+      {invitationData && renderMusicSection()}
 
       {renderHomeSection()}
 
