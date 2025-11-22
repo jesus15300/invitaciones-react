@@ -5,13 +5,13 @@ import { FaGlassCheers, FaMusic, FaBirthdayCake, FaMoon } from "react-icons/fa";
 import "./invitacionDenisse.styles.css";
 import { fetchAPI } from "../../utils/fetch-api";
 
-export async function getInvitationData() {
+async function getInvitationData() {
   const token = import.meta.env.VITE_STRAPI_TOKEN;
   const path = `/invitations`;
   const slug = "invitacion-xv-denisse";
   const fullPath =
     path +
-    `?filters[slug][$eq]=${slug}&populate[0]=itinerary&populate[1]=locations&populate[2]=form.questions&populate[3]=locations.imgUrl&populate[4]=form.questions.options&populate[5]=media.url`;
+    `?filters[slug][$eq]=${slug}&populate[itinerary]=*&populate[locations][populate]=imgUrl&populate[form][populate]=questions.options&populate[CustomElements][populate]=*`;
   const options = { headers: { Authorization: `Bearer ${token}` } };
   const invitationResponse = await fetchAPI(fullPath, {}, options);
 
@@ -20,8 +20,8 @@ export async function getInvitationData() {
 
 export default function InvitacionXV() {
   const BASE_PATH = import.meta.env.BASE_URL || "";
-  const BASE_STRAPI =
-    import.meta.env.VITE_STRAPI_URL || "http://127.0.0.1:1337";
+
+  const BASE_STRAPI = import.meta.env.VITE_STRAPI_URL;
   const [playing, setPlaying] = useState(false);
   const howlerRef = useRef(null);
 
@@ -38,10 +38,10 @@ export default function InvitacionXV() {
 
   const [invitationData, setInvitationData] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
-  const [musicLoaded, setMusicLoaded] = useState(false);
+  const [error, setError] = useState(null);
+  const [started, setStarted] = useState(false);
 
   const hoursTo12HourFormat = (time) => {
-    // example: "19:30:00" -> "7:30 PM" and "00:00:00" -> "8:00 AM"
     const [hour, minute] = time.split(":");
     const hourNum = parseInt(hour, 10);
     const period = hourNum >= 12 ? "PM" : "AM";
@@ -62,17 +62,18 @@ export default function InvitacionXV() {
         return null;
     }
   };
-  const findMedia = (title) => {
-    // invitationData?.media find by title
-    return invitationData?.media.find((media) => media.title === title);
+  const findCustomElement = (name) => {
+    return invitationData?.CustomElements.find((element) => element.name === name);
   };
   useEffect(() => {
     const fetchData = async () => {
       try {
         const data = await getInvitationData();
         setInvitationData(data);
+        setFechaEvento(new Date(data.startDate));
       } catch (error) {
         console.error("Error fetching invitation data:", error);
+        setError("Error al cargar los datos de la invitación. Por favor, recarga la página. Si el problema persiste, contacta al dueño de la invitación.");
       } finally {
         setTimeout(() => {
           setLoadingData(false);
@@ -82,14 +83,6 @@ export default function InvitacionXV() {
     fetchData();
   }, []);
 
-  // start music when scrollY > 300 and fix the problem The AudioContext was not allowed to start. It must be resumed (or created) after a user gesture on the page.
-  useEffect(() => {
-    return scrollY.onChange((latest) => {
-      if (latest > 300 && !playing) {
-        setPlaying(true);
-      }
-    });
-  }, [scrollY]);
 
   useEffect(() => {
     if (nombreInvitado) {
@@ -99,11 +92,12 @@ export default function InvitacionXV() {
     }
   }, [nombreInvitado]);
 
-  const fechaEvento = new Date("2026-01-29T19:30:00");
+  const [fechaEvento, setFechaEvento] = useState(null);
   const [tiempoRestante, setTiempoRestante] = useState({});
 
   useEffect(() => {
     const actualizarTiempo = () => {
+      if (!invitationData) return;
       const ahora = new Date();
       const diferencia = fechaEvento - ahora;
       const dias = Math.floor(diferencia / (1000 * 60 * 60 * 24));
@@ -122,7 +116,7 @@ export default function InvitacionXV() {
 
     const timer = setInterval(actualizarTiempo, 1000);
     return () => clearInterval(timer);
-  }, [fechaEvento]);
+  }, [invitationData]);
 
   const [abrirConfirmacion, setAbrirConfirmacion] = useState(false);
 
@@ -137,9 +131,8 @@ export default function InvitacionXV() {
     return (
       <>
         <ReactHowler
-          src={[BASE_STRAPI + findMedia("main-song")?.url.url]}
+          src={[BASE_STRAPI + findCustomElement("main-song")?.url.url]}
           playing={playing}
-          onLoad={() => {setMusicLoaded(true)}}
           ref={howlerRef}
           loop={true}
           volume={0.6}
@@ -231,9 +224,10 @@ export default function InvitacionXV() {
             transition={{ delay: 0.35, duration: 0.9 }}
             className="hero-image-frame"
           >
+            <img src={`${BASE_PATH}img/corona-gold.png`} alt="Floral Decoration" />
             <img
               className="profile-img shadow-deep border-red-dark"
-              src={`${BASE_PATH}img/denisse-perfil.jpg`}
+              src={BASE_STRAPI + findCustomElement("profile-photo")?.url.url}
               alt="Profile picture"
             />
           </motion.div>
@@ -259,9 +253,12 @@ export default function InvitacionXV() {
             >
               Denisse Salgado
             </motion.h1>
+            <h2 style={{ textShadow: "0 2px 4px rgba(0, 0, 0, 0.5)", fontSize: "1.5rem" }} className="text-gold-pale">
+              Mis XV Años
+            </h2>
             <p className="date-text text-gold-pale">
-              Mis XV Años —{" "}
-              {fechaEvento.toLocaleDateString("es-MX", {
+
+              {fechaEvento?.toLocaleDateString("es-MX", {
                 day: "numeric",
                 month: "long",
                 year: "numeric",
@@ -296,12 +293,39 @@ export default function InvitacionXV() {
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.2 }}
         transition={{ duration: 0.9 }}
-        className="card-red border-gold-thick shadow-heavy container-message"
+        className=" shadow-heavy section-container"
       >
-        <p className="message-text text-gray-light">
-          Te invito a celebrar el inicio de una nueva etapa en mi vida. Llena de
-          sueños, metas y nuevas experiencias.
-        </p>
+
+        {/* Fondos */}
+        <div className="section-bg-gradient" />
+        <div className="section-bg-texture mix-blend-overlay" />
+        <div className="content relative-z">
+          {/* Partículas flotantes animadas */}
+          <motion.div className="floating-dots-container">
+            {[...Array(70)].map((_, i) => (
+              <motion.div
+                key={i}
+                className="floating-dot bg-gold"
+                initial={{ y: -100, x: 200, opacity: 0 }}
+                animate={{ y: 800, x: -500, opacity: 1 }}
+                transition={{
+                  duration: 4 + Math.random() * 2,
+                  repeat: Infinity,
+                  delay: Math.random() * 2,
+                  ease: "linear",
+                }}
+              />
+            ))}
+          </motion.div>
+          <img src={`${BASE_PATH}img/gold-frame-top.png`} alt="Floral Decoration" className="margin-bottom" />
+          {findCustomElement("messages")?.texts.map(({ body }, i) => (
+            <p key={i} className="message-text text-gray-light">
+              {body}
+            </p>
+          ))}
+          <img src={`${BASE_PATH}img/gold-frame-bottom.png`} alt="Floral Decoration" className="margin-top" />
+
+        </div>
       </motion.div>
     );
   };
@@ -452,12 +476,11 @@ export default function InvitacionXV() {
             alt="Vestimenta Formal"
             className="dresscode-img drop-shadow-glow-red"
           />
-          <p className="text-lg text-yellow-light text-center">
-            Vestimenta formal requerida.
-          </p>
-          <p className="text-lg text-yellow-light text-center mt-2">
-            No olvides tu máscara elegante para complementar tu atuendo.
-          </p>
+          {findCustomElement("dress-code")?.texts.map(({ body }, i) => (
+            <p key={i} className="text-lg text-yellow-light text-center">
+              {body}
+            </p>
+          ))}
         </div>
       </section>
     );
@@ -511,7 +534,6 @@ export default function InvitacionXV() {
                     ? "Cerrar Confirmación"
                     : "Abrir Confirmación"}
                 </button>
-                <button className="btn-outline">Más información</button>
               </div>
               {abrirConfirmacion && (
                 <motion.div
@@ -602,28 +624,90 @@ export default function InvitacionXV() {
 
   return (
     <div className="main-page-wrapper bg-black text-white">
-      {loadingData && !musicLoaded ? (
+      {error && <div className="error-banner">{error}</div>}
+      {!started ? (
         <div className="loading-screen">
-          <div className="loading-spinner" />
-          <p className="loading-text text-gold-pale">Cargando invitación...</p>
+          {loadingData && (
+            <>
+              <div className="loading-spinner" />
+              <p className="loading-text text-gold-pale">Cargando invitación...</p>
+            </>
+          )}
+          {!loadingData && !started && (
+            <>
+              {/* Dots animados */}
+              <motion.div className="floating-dots-container">
+                {[...Array(70)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    className="floating-dot bg-gold"
+                    initial={{ y: -100, x: 200, opacity: 0 }}
+                    animate={{ y: 800, x: -500, opacity: 1 }}
+                    transition={{
+                      duration: 4 + Math.random() * 2,
+                      repeat: Infinity,
+                      delay: Math.random() * 2,
+                      ease: "linear",
+                    }}
+                  />
+                ))}
+              </motion.div>
+
+              {/* INTRO */}
+              <div className="intro-text-container flex flex-col gap-3 px-6 text-center">
+                {findCustomElement("intro-texts")?.texts.map(({ body }, i) => (
+                  <motion.p
+                    key={i}
+                    className="loading-text text-gold-pale text-sm leading-relaxed"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{
+                      duration: 1,
+                      delay: i * 2.2, // cada párrafo aparece cada ~2 segundos
+                    }}
+                  >
+                    {body}
+                  </motion.p>
+                ))}
+              </div>
+
+              {/* BOTÓN */}
+              <motion.button
+                className="btn-gold start-btn mt-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 4 * 2.2 }} // aparece después del último párrafo
+                onClick={() => {
+                  setPlaying(true);
+                  setStarted(true);
+                }}
+              >
+                Abrir Invitación
+              </motion.button>
+            </>
+
+          )}
         </div>
       ) : null}
-      {invitationData && renderMusicSection()}
+      {invitationData && !loadingData && started &&
+        <>
+          {renderMusicSection()}
 
-      {renderHomeSection()}
+          {renderHomeSection()}
 
-      {renderMessageSection()}
-      {renderCounterSection()}
-      {renderCardsUbicaciones()}
-      {renderItinerarioSection()}
+          {renderMessageSection()}
+          {renderCounterSection()}
+          {renderCardsUbicaciones()}
+          {renderItinerarioSection()}
 
-      {renderCodigoVestimentaSection()}
-      {renderConfirmacionSection()}
+          {renderCodigoVestimentaSection()}
+          {renderConfirmacionSection()}
 
-      <footer className="footer-credits">
-        Creada con ❤️ por Jesús Emanuel Salgado Lezama -{" "}
-        {new Date().getFullYear()}
-      </footer>
+          <footer className="footer-credits">
+            Creada con ❤️ por Jesús Emanuel Salgado Lezama -{" "}
+            {new Date().getFullYear()}
+          </footer>
+        </>}
     </div>
   );
 }
