@@ -657,6 +657,11 @@
   border-style: solid;
   padding: 0.5rem;
 }
+/* placeholder */
+.form-input::placeholder,
+.form-select::placeholder {
+  color: var(--gray-mid);
+}
 
 .border-gray {
   border-color: var(--gray-mid);

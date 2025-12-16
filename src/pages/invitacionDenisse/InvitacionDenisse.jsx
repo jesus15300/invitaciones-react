@@ -182,6 +182,7 @@ export default function InvitacionXV() {
   const [valoresFormulario, setValoresFormulario] = useState({
     nombre: nombreInvitado || "",
     asistencia: "confirmado",
+    "cantidad-acompanantes": "",
   });
 
   /* ================= RENDERS ================= */
@@ -190,7 +191,7 @@ export default function InvitacionXV() {
     return (
       <>
         <ReactHowler
-          src={[BASE_STRAPI + findCustomElement("main-song")?.url.url]}
+          src={[findCustomElement("main-song")?.url.url]}
           playing={playing}
           ref={howlerRef}
           loop={true}
@@ -286,7 +287,7 @@ export default function InvitacionXV() {
             <img src={`${BASE_PATH}img/corona-gold.png`} alt="Floral Decoration" />
             <img
               className="profile-img shadow-deep border-red-dark"
-              src={BASE_STRAPI + findCustomElement("profile-photo")?.url.url}
+              src={findCustomElement("profile-photo")?.url.url}
               alt="Profile picture"
             />
           </motion.div>
@@ -442,7 +443,7 @@ export default function InvitacionXV() {
               <div
                 className="location-image"
                 style={{
-                  backgroundImage: `url(${BASE_STRAPI}${location.imgUrl.formats.medium.url})`,
+                  backgroundImage: `url(${location.imgUrl.formats.medium.url})`,
                 }}
               />
 
@@ -667,11 +668,11 @@ export default function InvitacionXV() {
         className="form-select border-gray bg-gray-dark text-light focus-gold"
         required={true}
       >
+        <option value={""} disabled>
+          {field.help}
+        </option>
         {field.options.map((option) => (
           <>
-            <option value={""} disabled>
-              {option.help}
-            </option>
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
