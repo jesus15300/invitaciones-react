@@ -3,7 +3,7 @@ import { motion, useViewportScroll, useTransform } from "framer-motion";
 import ReactHowler from "react-howler";
 import { FaGlassCheers, FaMusic, FaBirthdayCake, FaMoon } from "react-icons/fa";
 import "./invitacionDenisse.styles.css";
-import { fetchAPI } from "../../utils/fetch-api";
+import { fetchAPI, postApi } from "../../utils/fetch-api";
 
 async function getInvitationData() {
   const token = import.meta.env.VITE_STRAPI_TOKEN;
@@ -16,6 +16,62 @@ async function getInvitationData() {
   const invitationResponse = await fetchAPI(fullPath, {}, options);
 
   return invitationResponse.data[0];
+}
+async function validateVisit(invitationData) {
+  const token = import.meta.env.VITE_STRAPI_TOKEN;
+  const path = `/tracking/visit`;
+  const fullPath = path;
+  const options = { headers: { Authorization: `Bearer ${token}` } };
+  // agregar visitId si ya existe
+  const storedVisit = localStorage.getItem(`visit_${invitationData.documentId}`);
+  const body = {
+    invitationDocumentId: invitationData.documentId,
+  };
+  if (storedVisit) {
+    const visitData = JSON.parse(storedVisit);
+    body.visitId = visitData.visitId;
+  }
+  const response = await postApi(fullPath, body, options);
+  if (response.error) throw new Error(response.error.message);
+  localStorage.setItem(`visit_${invitationData.documentId}`, JSON.stringify(
+    {
+      visited: true, timestamp: new Date().toISOString(),
+      visitId: response.visit.id, visitDocumentId: invitationData.documentId
+    }));
+  return response;
+}
+
+async function postConfirmacion(invitationData, formValues) {
+  console.log("postConfirmacion", invitationData, formValues);
+  const token = import.meta.env.VITE_STRAPI_TOKEN;
+  const path = `/tracking/confirm`;
+  // {
+  //   "invitationId": "uh5y5a0bh1u49mj29digguq8",
+  //     "visitId": 11,
+  //       "visitDocumentId": "n7vgehn4o116t5c0pvnpv3h9",
+  //         "guestName": "Salgado Lezama",
+  //           "guestCount": 5,
+  //             "status": "confirmed"
+  // }
+  const fullPath = path;
+  const options = { headers: { Authorization: `Bearer ${token}` } };
+  const storedVisit = localStorage.getItem(`visit_${invitationData.documentId}`);
+  let visitId = null;
+  if (storedVisit) {
+    const visitData = JSON.parse(storedVisit);
+    visitId = visitData.visitId;
+  }
+  const body = {
+    invitationId: invitationData.id,
+    visitId: visitId,
+    visitDocumentId: invitationData.documentId,
+    guestName: formValues.guestName,
+    guestCount: formValues.guestCount,
+    status: "confirmed"
+  };
+  const response = await postApi(fullPath, body, options);
+  if (response.error) throw new Error(response.error.message);
+  return response;
 }
 
 export default function InvitacionXV() {
@@ -37,6 +93,7 @@ export default function InvitacionXV() {
   );
 
   const [invitationData, setInvitationData] = useState(null);
+  const [formValues, setFormValues] = useState({});
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState(null);
   const [started, setStarted] = useState(false);
@@ -71,6 +128,8 @@ export default function InvitacionXV() {
         const data = await getInvitationData();
         setInvitationData(data);
         setFechaEvento(new Date(data.startDate));
+        console.log("useEffect ejecutado", new Date().toISOString());
+        await validateVisit(data);
       } catch (error) {
         console.error("Error fetching invitation data:", error);
         setError("Error al cargar los datos de la invitación. Por favor, recarga la página. Si el problema persiste, contacta al dueño de la invitación.");
@@ -689,7 +748,7 @@ export default function InvitacionXV() {
           )}
         </div>
       ) : null}
-      {invitationData && !loadingData && started &&
+      {invitationData && !loadingData &&
         <>
           {renderMusicSection()}
 
