@@ -4,6 +4,7 @@ import ReactHowler from "react-howler";
 import { FaGlassCheers, FaMusic, FaBirthdayCake, FaMoon } from "react-icons/fa";
 import "./invitacionDenisse.styles.css";
 import { fetchAPI, postApi } from "../../utils/fetch-api";
+import { body, form } from "framer-motion/client";
 
 async function getInvitationData() {
   const token = import.meta.env.VITE_STRAPI_TOKEN;
@@ -23,54 +24,70 @@ async function validateVisit(invitationData) {
   const fullPath = path;
   const options = { headers: { Authorization: `Bearer ${token}` } };
   // agregar visitId si ya existe
-  const storedVisit = localStorage.getItem(`visit_${invitationData.documentId}`);
+  const storedVisit = localStorage.getItem(`visit_${invitationData.slug}`);
   const body = {
     invitationDocumentId: invitationData.documentId,
   };
   if (storedVisit) {
     const visitData = JSON.parse(storedVisit);
     body.visitId = visitData.visitId;
+    body.visitDocumentId = visitData.visitDocumentId;
   }
   const response = await postApi(fullPath, body, options);
   if (response.error) throw new Error(response.error.message);
-  localStorage.setItem(`visit_${invitationData.documentId}`, JSON.stringify(
+  localStorage.setItem(`visit_${invitationData.slug}`, JSON.stringify(
     {
-      visited: true, timestamp: new Date().toISOString(),
-      visitId: response.visit.id, visitDocumentId: invitationData.documentId
+      visited: true, 
+      timestamp: new Date().toISOString(),
+      visitId: response.visit.id, 
+      visitDocumentId: response.visit.documentId
     }));
   return response;
 }
+// body of postConfirmation
+// {
+//     "invitationDocumentId": "uh5y5a0bh1u49mj29digguq8",
+//     "visitDocumentId": "zz8u0wi9obxgbjqqek460ndy",
+//     "guestName": "Salgado Lezama",
+//     "guestCount": 5,
+//     "status": "pending",
+//     "formResponse": [
+//         {"pregunta":"pregunta 1", "respuesta":"respuesta 1"}
+//     ]
+// }
+
 
 async function postConfirmacion(invitationData, formValues) {
   console.log("postConfirmacion", invitationData, formValues);
   const token = import.meta.env.VITE_STRAPI_TOKEN;
   const path = `/tracking/confirm`;
-  // {
-  //   "invitationId": "uh5y5a0bh1u49mj29digguq8",
-  //     "visitId": 11,
-  //       "visitDocumentId": "n7vgehn4o116t5c0pvnpv3h9",
-  //         "guestName": "Salgado Lezama",
-  //           "guestCount": 5,
-  //             "status": "confirmed"
-  // }
   const fullPath = path;
   const options = { headers: { Authorization: `Bearer ${token}` } };
-  const storedVisit = localStorage.getItem(`visit_${invitationData.documentId}`);
-  let visitId = null;
+  const storedConfirmation = localStorage.getItem(`confirmation_${invitationData.slug}`);
+  if(storedConfirmation){
+    const parsedConfirmation = JSON.parse(storedConfirmation);
+    if(parsedConfirmation && parsedConfirmation.confirmationStatus === "confirmed")
+      throw new Error("Ya has confirmado tu asistencia previamente.");
+  }
+  const storedVisit = localStorage.getItem(`visit_${invitationData.slug}`);
+  let visitDocumentId = null;
   if (storedVisit) {
     const visitData = JSON.parse(storedVisit);
-    visitId = visitData.visitId;
+    visitDocumentId = visitData.visitDocumentId;
   }
   const body = {
-    invitationId: invitationData.id,
-    visitId: visitId,
-    visitDocumentId: invitationData.documentId,
+    invitationDocumentId: invitationData.documentId,
+    visitDocumentId: visitDocumentId,
     guestName: formValues.guestName,
     guestCount: formValues.guestCount,
-    status: "confirmed"
+    formResponse: formValues || [],
+    status: formValues.status || "pending",
   };
   const response = await postApi(fullPath, body, options);
   if (response.error) throw new Error(response.error.message);
+  if(response.confirmation){
+    localStorage.setItem(`confirmation_${invitationData.slug}`, JSON.stringify(response.confirmation));
+  }
   return response;
 }
 
@@ -130,6 +147,17 @@ export default function InvitacionXV() {
         setFechaEvento(new Date(data.startDate));
         console.log("useEffect ejecutado", new Date().toISOString());
         await validateVisit(data);
+        const formEmptyValues = {};
+        data.form.questions.forEach((field) => {
+          formEmptyValues[field.name] = "";
+        });
+        setFormValues(formEmptyValues);
+
+        const storedConfirmation = localStorage.getItem(`confirmation_${data.slug}`);
+        if(storedConfirmation){
+          const parsedConfirmation = JSON.parse(storedConfirmation);
+            setConfirmationStatus(parsedConfirmation.confirmationStatus);
+        }
       } catch (error) {
         console.error("Error fetching invitation data:", error);
         setError("Error al cargar los datos de la invitación. Por favor, recarga la página. Si el problema persiste, contacta al dueño de la invitación.");
@@ -153,6 +181,7 @@ export default function InvitacionXV() {
 
   const [fechaEvento, setFechaEvento] = useState(null);
   const [tiempoRestante, setTiempoRestante] = useState({});
+  const [confirmationStatus, setConfirmationStatus] = useState("");
 
   useEffect(() => {
     const actualizarTiempo = () => {
@@ -179,11 +208,6 @@ export default function InvitacionXV() {
 
   const [abrirConfirmacion, setAbrirConfirmacion] = useState(false);
 
-  const [valoresFormulario, setValoresFormulario] = useState({
-    nombre: nombreInvitado || "",
-    asistencia: "confirmado",
-    "cantidad-acompanantes": "",
-  });
 
   /* ================= RENDERS ================= */
 
@@ -579,9 +603,10 @@ export default function InvitacionXV() {
                   {nombreInvitado}
                 </h4>
               )}
+              {confirmationStatus == "" && <>
               <p className="mt-4 text-gray-light" style={{ marginTop: "1rem" }}>
                 Solo puedes confirmar tu asistencia una vez. Por favor, haz clic
-                en el botón de "Confirmar" para iniciar tu registro.
+                en el botón de "Abrir Confirmación" para iniciar tu registro.
               </p>
 
               <div className="btn-group">
@@ -595,6 +620,31 @@ export default function InvitacionXV() {
                     : "Abrir Confirmación"}
                 </button>
               </div>
+                    </>  }
+              {confirmationStatus == "confirmed" && (
+              <div className="confirmation-message text-green-400 font-semibold mt-4">
+                ¡Gracias! Ya has confirmado tu asistencia.
+              </div>)}
+              {/* mensaje de que aun pueden aceptar la invitacion */}
+              {confirmationStatus != "confirmed" && confirmationStatus != "" && (
+                <>
+              <div className="confirmation-message text-yellow-400 font-semibold mt-4">
+                Ya has contestado el formulario pero aun puedes confirmar tu asistencia.
+              </div>
+              <div className="btn-group">
+                <button
+                  className="btn-gold"
+                  onClick={() => setAbrirConfirmacion(!abrirConfirmacion)}
+                  style={{ border: "none", cursor: "pointer" }}
+                >
+                  {abrirConfirmacion
+                    ? "Cerrar Confirmación"
+                    : "Abrir Confirmación"}
+                </button>
+              </div>
+                    </>
+            )}
+              
               {abrirConfirmacion && (
                 <motion.div
                   className="mt-8"
@@ -603,10 +653,23 @@ export default function InvitacionXV() {
                   whileInView={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.6 }}
                 >
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    try {
+                      const response = await postConfirmacion(invitationData, formValues);
+                      setConfirmationStatus(response.confirmation.confirmationStatus);
+
+                      alert("¡Confirmación enviada con éxito! Gracias por responder la asistencia.");
+                      setAbrirConfirmacion(false);
+                    } catch (error) {
+                      console.error("Error al enviar la confirmación:", error);
+                      alert("Hubo un error al enviar tu confirmación. Por favor, intenta nuevamente más tarde.");
+                    }
+                  }}>
                   {invitationData?.form.questions.map((field) => (
                     <div
-                      key={field.id}
-                      className="mb-4 text-left"
+                    key={field.id}
+                    className="mb-4 text-left"
                       style={{ marginBottom: "1rem", textAlign: "left" }}
                     >
                       <label
@@ -623,8 +686,17 @@ export default function InvitacionXV() {
                       </label>
                       {field.type == "text" && renderTextField(field)}
                       {field.type == "select" && renderSelectField(field)}
+
+                      
                     </div>
                   ))}
+                  <button
+                        className="btn-gold mt-4"
+                        style={{ marginTop: "1rem", border: "none" }}
+                        >
+                        Confirmar
+                      </button>
+                  </form>
                 </motion.div>
               )}
             </motion.div>
@@ -641,12 +713,12 @@ export default function InvitacionXV() {
         id={field.id}
         placeholder={field.help}
         className="form-input border-gray bg-gray-dark text-light focus-gold"
-        required={true}
-        value={valoresFormulario[field.name]}
+        required={field.required}
+        value={formValues[field.name]}
         disabled={field.disabled}
         onChange={(e) =>
-          setValoresFormulario({
-            ...valoresFormulario,
+          setFormValues({
+            ...formValues,
             [field.name]: e.target.value,
           })
         }
@@ -658,15 +730,15 @@ export default function InvitacionXV() {
     return (
       <select
         id={field.id}
-        value={valoresFormulario[field.name]}
+        value={formValues[field.name]}
         onChange={(e) =>
-          setValoresFormulario({
-            ...valoresFormulario,
+          setFormValues({
+            ...formValues,
             [field.name]: e.target.value,
           })
         }
         className="form-select border-gray bg-gray-dark text-light focus-gold"
-        required={true}
+        required={field.required}
       >
         <option value={""} disabled>
           {field.help}
