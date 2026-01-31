@@ -1,6 +1,11 @@
 /* --- FUENTES --- */
 @import url("https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&display=swap");
 
+html,
+body {
+  z-index: 1;
+  background-color: #000;
+}
 /* --- VARIABLES Y UTILIDADES GENERALES --- */
 :root {
   --gold-light: #fef9c3;
@@ -427,6 +432,8 @@
 
 /* --- SECCIÓN UBICACIONES --- */
 .section-bg-gradient {
+  height: 100vh;
+  z-index: 0;
   position: absolute;
   inset: 0;
   background: linear-gradient(to bottom, #120000, #4a0000, #120000);
@@ -439,7 +446,14 @@
   background-image: url("https://images.freecreatives.com/wp-content/uploads/2016/07/Dark-Purple-Velvet-Texture1.jpg");
   background-size: cover;
   background-position: center;
-  z-index: 0;
+  z-index: 1;
+  height: 100vh;
+}
+
+  .section-bg-gradient,
+.section-bg-texture {
+  position: absolute;
+  inset: 0;
 }
 
 .section-title {
